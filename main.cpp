@@ -85,7 +85,6 @@ struct PredictPC_ {
 	int val;
 
 	void Proc(int valC, int valP) {
-		
 	}
 };
 
