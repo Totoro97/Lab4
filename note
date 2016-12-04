@@ -1,0 +1,74 @@
+int srcA = [
+icode in { IRRMOVL, IRMMOVL, IOPL, IPUSHL
+icode in { IPOPL, IRET } : RESP;
+1 : RNONE; # Don't need register
+];
+
+int dstE = [
+icode in { IRRMOVL, IIRMOVL, IOPL} : rB;
+icode in { IPUSHL, IPOPL, ICALL, IRET } : RESP;
+1 : RNONE; # Don't need register
+];
+
+int aluA = [
+icode in { IRRMOVL, IOPL } : valA;
+icode in { IIRMOVL, IRMMOVL, IMRMOVL } : valC;
+icode in { ICALL, IPUSHL } : -4;
+icode in { IRET, IPOPL } : 4;
+# Other instructions don't need ALU
+jc@fudan.edu.cn
+];
+
+int alufun = [
+icode == IOPL : ifun;
+1 : ALUADD;
+];
+
+Bool set_cc = icode in { IOPL };
+
+int new_pc = [
+icode == ICALL : valC;
+icode == IJXX && Bch : valC;
+icode == IRET : valM;
+1 : valP;
+];
+
+Int pc= [
+pIcode == ICALL : pValC;
+pIcode == IJXX && bBch : pValC;
+PIcode == IRET : pValM;
+1 : pValP;
+];
+
+int f_PC = [
+#mispredicted branch. Fetch at incremented PC
+M_icode == IJXX && !M_Bch : M_valA;
+#completion of RET instruciton
+W_icode == IRET : W_valM;
+#default: Use predicted value of PC
+1: F_predPC
+];
+Int new_F_predPC = [
+f_icode in {IJXX, ICALL} : f_valC;
+1: f_valP;
+];
+
+## What should be the A value?
+int new_E_valA = [
+# Use incremented PC
+D_icode in { ICALL, IJXX } : D_valP;
+# Forward valE from execute
+d_srcA == E_dstE : e_valE;
+# Forward valM from memory
+d_srcA == M_dstM : m_valM;
+# Forward valE from memory
+d_srcA == M_dstE : M_valE;
+# Forward valM from write back
+d_srcA == W_dstM : W_valM;
+# Forward valE from write back
+d_srcA == W_dstE : W_valE;
+# Use value read from register file
+1 : d_rvalA;
+];
+
+Processing ret IRET in { D_icode, E_icode, M_icode }

@@ -66,6 +66,7 @@ struct SelectPC_ {
 };
 
 struct stadD_ {
+	 
 };
 
 struct PCinc_ {
@@ -76,6 +77,8 @@ struct PCinc_ {
 		else if (icode <= 5 && icode >= 3) valP = 6;
 		else if (icode == 7 || icode == 8) valP = 5;
 		else valP = 2;
+		valP += s;
+		return;
 	}
 
 	int Get() { return valP; }
@@ -84,7 +87,10 @@ struct PCinc_ {
 struct PredictPC_ {
 	int val;
 
-	void Proc(int valC, int valP) {
+	void Proc(int iCode, int valC, int valP) {
+		if (iCode == JXX || iCode == CALL) val = valC;
+		else val = valP;
+		return;
 	}
 };
 
