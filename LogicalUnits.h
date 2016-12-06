@@ -10,6 +10,7 @@ struct SelectPC_ {
 			ans = W_valM;
 		else 
 			ans = F_predPC;
+		printf("\nSelect:%d\n",ans);
 	}
 };
 
@@ -94,6 +95,7 @@ struct f_stat_ {
 	int val;
 	int Get() { return val; }
 	void Proc(int f_icode, int instr_valid, int imem_error) {
+		printf("\nf_icode:%d\n",f_icode);
 		if (imem_error) val = SADR;
 		else if (!instr_valid) val = SINS;
 		else if (f_icode == IHALT) val = SHLT;
