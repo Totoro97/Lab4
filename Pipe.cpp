@@ -170,7 +170,7 @@ struct F_ { int predPC; };
 		ALUA.Proc(Pas.E.icode, Pas.E.valC, Pas.E.valA);
 		ALUB.Proc(Pas.E.icode, Pas.E.valB);
 		SetCC.Proc(Pas.E.icode, Pas.W.stat, Pas.m_stat.Get());
-		ALU.Proc(ALUA.Get(), ALUB.Get(), ALUfun.Get()); 
+		ALU.Proc(ALUA.Get(), ALUB.Get(), ALUfun.Get(), SetCC.Get(), Pas.ALU.ZF, Pas.ALU.SF, Pas.ALU.OF); 
 		CC.Proc(ALU.ZF, ALU.SF, ALU.OF, SetCC.Get());
 		cond.Proc(Pas.E.ifun, CC.le, CC.l, CC.e, CC.ne, CC.ge, CC. g);
 		e_dstE.Proc(Pas.E.icode, cond.Get(), Pas.E.dstE);
@@ -180,16 +180,19 @@ struct F_ { int predPC; };
 		d_dstM.Proc(Pas.D.icode, Pas.D.rA);
 		d_srcA.Proc(Pas.D.icode, Pas.D.rA);
 		d_srcB.Proc(Pas.D.icode, Pas.D.rB);
-		FwdA.Proc(Pas.D.icode, Pas.D.valP, d_srcA.Get(), Pas.RegisterFiles.d_rvalA,
-				e_dstE.Get(), Pas.ALU.valE, Pas.M.dstE, Pas.M.valE, Pas.M.dstM,
+		printf("d_srcA:%d\n",d_srcA.Get());
+		printf("d_srcB:%d\n",d_srcB.Get());
+		RegisterFiles.Proc(d_srcA.Get(), d_srcB.Get());
+		FwdA.Proc(Pas.D.icode, Pas.D.valP, d_srcA.Get(), RegisterFiles.d_rvalA,
+				e_dstE.Get(), ALU.valE, Pas.M.dstE, Pas.M.valE, Pas.M.dstM,
 				Datamemory.Get(), Pas.W.dstM, Pas.W.valM, Pas.W.dstE, Pas.W.valE);
-		FwdB.Proc(d_srcB.Get(), Pas.RegisterFiles.d_rvalB,
-				e_dstE.Get(), Pas.ALU.valE, Pas.M.dstE, Pas.M.valE, Pas.M.dstM,
+		FwdB.Proc(d_srcB.Get(), RegisterFiles.d_rvalB,
+				e_dstE.Get(), ALU.valE, Pas.M.dstE, Pas.M.valE, Pas.M.dstM,
 				Datamemory.Get(), Pas.W.dstM, Pas.W.valM, Pas.W.dstE, Pas.W.valE);
 	
 		// Fetch
-		SelectPC.Proc(Pas.M.icode, Pas.M.Cnd, Pas.M.valA, Pas.W.icode, Pas.W.valM, Pas.F.predPC);		
-		Instructions.Proc(COMMAND + SelectPC.Get());
+		SelectPC.Proc(Pas.D.icode, Pas.E.icode, Pas.SelectPC.Get(), Pas.M.icode, Pas.M.Cnd, Pas.M.valE, Pas.W.icode, Pas.W.valM, Pas.PCinc.valP);		
+		Instructions.Proc(COMMAND + SelectPC.Get(), SelectPC.Isbubble);
 		Split.Proc(Instructions.icode, Instructions.ifun);
 		f_icode.Proc(Instructions.imem_error, Split.icode);
 		f_ifun.Proc(Instructions.imem_error, Split.ifun);
@@ -197,7 +200,7 @@ struct F_ { int predPC; };
 		f_stat.Proc(f_icode.Get(), Instrvalid.Get(), Instructions.imem_error);
 		NeedvalC.Proc(f_icode.Get());
 		Needregids.Proc(f_icode.Get());
-		PCinc.Proc(SelectPC.Get(), COMMAND);
+		PCinc.Proc(SelectPC.Get(), COMMAND, SelectPC.Isbubble);
 		Align.Proc(Instructions.rA, Instructions.rB, Instructions.valC, Needregids.Get());	
 		PredictPC.Proc(f_icode.Get(), Align.valC, PCinc.valP);
 		
@@ -270,7 +273,7 @@ int main() {
 		m++;
 		PIPE[m].Proc(PIPE[m - 1]);	
 		PIPE[m].Print();
-		printf("%d %d\n",m,PIPE[m].D.valP);
+		printf("\n");
 	} while (PIPE[m].stat == SAOK);
 	return 0;
 }

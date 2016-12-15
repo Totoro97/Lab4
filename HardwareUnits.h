@@ -13,8 +13,13 @@ struct Instructions_ {
 	int A[6];
 	int icode, ifun, rA, rB, valC;
 	int imem_error;	
-	void Proc(int *COMMAND) {
+	void Proc(int *COMMAND, int Isbubble) {
 		printf("first:%d\n",COMMAND[0]);
+		if (Isbubble) {
+			icode = IBUBBLE;
+			ifun = rA = rB = valC = 0;
+			return;
+		}
 		for (int i = 0; i < 6; i++) A[i] = COMMAND[i];
 		if (A[0] == -1) { imem_error = 1; return; }
 		icode = A[0] >> 4;
@@ -38,7 +43,7 @@ struct Instructions_ {
 struct PCinc_ {
 	int valP;
 	int Get() { return valP; }
-	void Proc(int f_pc, int *COMMAND) {
+	void Proc(int f_pc, int *COMMAND, int Isbubble) {
 		int s = f_pc;
 		int icode = COMMAND[s] >> 4;
 		if (COMMAND[s] == -1) valP = 0;
@@ -69,9 +74,9 @@ struct RegisterFiles_ {
 	void Print() {
 		printf("\"RegisterFiles\" : { ");
 		printf("\"eax\" : %d, ",val[0]);
-		printf("\"ebx\" : %d, ",val[1]);
-		printf("\"ecx\" : %d, ",val[2]);
-		printf("\"edx\" : %d, ",val[3]);
+		printf("\"ecx\" : %d, ",val[1]);
+		printf("\"edx\" : %d, ",val[2]);
+		printf("\"ebx\" : %d, ",val[3]);
 		printf("\"esp\" : %d, ",val[4]);
 		printf("\"ebp\" : %d, ",val[5]);
 		printf("\"esi\" : %d, ",val[6]);
@@ -96,29 +101,30 @@ struct RegisterFiles_ {
 struct ALU_ {
 	int valE;
 	int ZF, SF, OF;
-	void Proc(int valA, int valB, int alu_fun) {
+	void Proc(int valA, int valB, int alu_fun, int SetCC, int ZF_, int SF_, int OF_) {
 		ZF = SF = OF = 0;
 		if (alu_fun == 0) {
 			valE = valA + valB;
-			OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0);
+			if (SetCC) OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0);
 		} else if (alu_fun == 1) {
 			valB = -valB;
 			valE = valA + valB;
-			OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0) || (valB == (1 << 31));
+			if (SetCC) OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0) || (valB == (1 << 31));
 		} else if (alu_fun == 2) {
 			valE = valA & valB;
 		} else {
-			valE = valA | valB;
+			valE = valA ^ valB;
 		}
-		SF = (valE < 0);
-		ZF = (valE == 0);
+		if (SetCC) SF = (valE < 0);
+		if (SetCC) ZF = (valE == 0);
+		if (!SetCC) ZF = ZF_, SF = SF_, OF = OF_;
 	}
 };
 
 struct CC_ {
 	int le, l, e, ne, ge, g;
 	void Proc(int ZF, int SF, int OF, int SetCC) {
-		if (!SetCC) { le = l = e = ne = ge = g = 0; return; }
+		//if (!SetCC) { le = l = e = ne = ge = g = 0; return; }
 		le = (SF ^ OF) | ZF;
 		l = (SF ^ OF);
 		e = ZF;
