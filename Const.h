@@ -1,7 +1,7 @@
 //icode
 
-const int INOP = 0;
-const int IHALT = 1;
+const int INOP = 1;
+const int IHALT = 0;
 const int IRRMOVL = 2;
 const int IIRMOVL = 3;
 const int IRMMOVL = 4;
