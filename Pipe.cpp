@@ -10,10 +10,17 @@ using namespace std;
 #include "HardwareUnits.h"
 
 struct W_ { 
+	int stall;
+	
+	void LogicProc(int W_stat) {
+		stall = set<int> { SADR, SINS, SHLT }.count(W_stat);
+	}
+	
 	int stat, icode, valE, valM, dstE, dstM;
 
 	void Print() {
 		printf("\"W\" : { ");
+		printf("\"stall\" : %d, ",stall);
 		printf("\"stat\" : %d, ",stat);
 		printf("\"icode\" : %d, ",icode);
 		printf("\"valE\" : %d, ",valE);
@@ -25,9 +32,16 @@ struct W_ {
 };
 
 struct M_ { 
+	int bubble;
+
+	void LogicProc(int W_stat, int m_stat) {
+		bubble = set<int> { SADR, SINS, SHLT }.count(m_stat) || set<int> { SADR, SINS, SHLT }.count(W_stat);
+	}
+
 	int stat, icode, Cnd, valE, valA, dstE, dstM;
 	void Print() {
 		printf("\"M\" : { ");
+		printf("\"bubble\" : %d, ",bubble);
 		printf("\"stat\" : %d, ",stat);
 		printf("\"icode\" : %d, ",icode);
 		printf("\"Cnd\" : %d, ",Cnd);
@@ -40,9 +54,21 @@ struct M_ {
 };
 
 struct E_ { 
+	int bubble;
+
+	void LogicProc(int E_icode, int E_dstM, int e_Cnd, int d_srcA, int d_srcB) {
+		if (E_icode == IJXX && !e_Cnd) 
+			bubble = 1;
+		else if (set<int>{ IMRMOVL, IPOPL }.count(E_icode) && set<int>{ d_srcA, d_srcB }.count(E_dstM))
+			bubble = 1;
+		else 
+			bubble = 0;
+	}
+
 	int stat, icode, ifun, valC, valA, valB, dstE, dstM, srcA, srcB; 
 	void Print() {
 		printf("\"E\" : { ");
+		printf("\"bubble\" : %d, ",bubble);
 		printf("\"stat\" : %d, ",stat);
 		printf("\"icode\" : %d, ",icode);
 		printf("\"ifun\" : %d, ",ifun);
@@ -58,9 +84,34 @@ struct E_ {
 };
 
 struct D_ { 
+	int bubble, stall;
+	
+	/*bool D_bubble =
+	# Mispredicted branch
+	(E_icode == IJXX && !e_Cnd) ||
+	# Stalling at fetch while ret passes through pipeline
+	# but not condition for a load/use hazard
+	!(E_icode in { IMRMOVL, IPOPL } && E_dstM in { d_srcA, d_srcB }) &&
+	  IRET in { D_icode, E_icode, M_icode };*/
+
+	void LogicProc(int D_icode, int E_icode, int M_icode, int d_srcA, int d_srcB, int E_dstM, int e_Cnd) {
+		if (E_icode == IJXX && !e_Cnd) bubble = 1;
+		else if (!(set<int> { IMRMOVL, IPOPL }.count(E_icode) && set<int> { d_srcA, d_srcB }.count(E_dstM)) &&
+			set<int> { D_icode, E_icode, M_icode }.count(IRET)) bubble = 1;
+		else bubble = 0;
+
+		if (set<int> { IMRMOVL, IPOPL }.count(E_icode) && set<int> { d_srcA, d_srcB }.count(E_dstM)) 
+			stall = 1;
+		else 
+			stall = 0;
+		return;
+	}
+
 	int stat, icode, ifun, rA, rB, valC, valP; 
 	void Print() {
 		printf("\"D\" : { ");
+		printf("\"stall\" : %d, ",stall);
+		printf("\"bubble\" : %d, ",bubble);
 		printf("\"stat\" : %d, ",stat);
 		printf("\"icode\" : %d, ",icode);
 		printf("\"ifun\" : %d, ",ifun);
@@ -73,9 +124,19 @@ struct D_ {
 };
 
 struct F_ { 
+	int stall;
+
+	void LogicProc(int E_icode, int E_dstM, int D_icode, int M_icode, int d_srcA, int d_srcB) {
+		if ((set<int> { IMRMOVL, IPOPL }.count(E_icode) && set<int> { d_srcA, d_srcB }.count(E_dstM)) || 
+			(set<int> { D_icode, E_icode, M_icode }.count(IRET)))
+			stall = 1;
+		else stall = 0;
+	}
+
 	int predPC; 
 	void Print() {
 		printf("\"F\" : { ");
+		printf("\"stall\" : %d, ",stall);
 		printf("\"predPC\" : %d ",predPC);
 		printf("}\n");
 	}	
@@ -170,7 +231,7 @@ struct F_ { int predPC; };
 		ALUA.Proc(Pas.E.icode, Pas.E.valC, Pas.E.valA);
 		ALUB.Proc(Pas.E.icode, Pas.E.valB);
 		SetCC.Proc(Pas.E.icode, Pas.W.stat, Pas.m_stat.Get());
-		ALU.Proc(ALUA.Get(), ALUB.Get(), ALUfun.Get(), SetCC.Get(), Pas.ALU.ZF, Pas.ALU.SF, Pas.ALU.OF); 
+		ALU.Proc(ALUA.Get(), ALUB.Get(), ALUfun.Get()); 
 		CC.Proc(ALU.ZF, ALU.SF, ALU.OF, SetCC.Get());
 		cond.Proc(Pas.E.ifun, CC.le, CC.l, CC.e, CC.ne, CC.ge, CC. g);
 		e_dstE.Proc(Pas.E.icode, cond.Get(), Pas.E.dstE);
@@ -191,8 +252,8 @@ struct F_ { int predPC; };
 				Datamemory.Get(), Pas.W.dstM, Pas.W.valM, Pas.W.dstE, Pas.W.valE);
 	
 		// Fetch
-		SelectPC.Proc(Pas.D.icode, Pas.E.icode, Pas.SelectPC.Get(), Pas.M.icode, Pas.M.Cnd, Pas.M.valE, Pas.W.icode, Pas.W.valM, Pas.PCinc.valP);		
-		Instructions.Proc(COMMAND + SelectPC.Get(), SelectPC.Isbubble);
+		SelectPC.Proc(Pas.M.icode, Pas.M.Cnd, Pas.M.valA, Pas.W.icode, Pas.W.valM, Pas.F.predPC);		
+		Instructions.Proc(COMMAND + SelectPC.Get());
 		Split.Proc(Instructions.icode, Instructions.ifun);
 		f_icode.Proc(Instructions.imem_error, Split.icode);
 		f_ifun.Proc(Instructions.imem_error, Split.ifun);
@@ -200,16 +261,31 @@ struct F_ { int predPC; };
 		f_stat.Proc(f_icode.Get(), Instrvalid.Get(), Instructions.imem_error);
 		NeedvalC.Proc(f_icode.Get());
 		Needregids.Proc(f_icode.Get());
-		PCinc.Proc(SelectPC.Get(), COMMAND, SelectPC.Isbubble);
+		PCinc.Proc(SelectPC.Get(), COMMAND);
 		Align.Proc(Instructions.rA, Instructions.rB, Instructions.valC, Needregids.Get());	
 		PredictPC.Proc(f_icode.Get(), Align.valC, PCinc.valP);
 		
 	}
 
-	void Convey(PIPE_ Pas) {
-		// To F
+	void ConveyF(PIPE_ Pas) {
+	// To F
+		//void LogicProc(int E_icode, int E_dstM, int D_icode, int M_icode, int d_srcA, int d_srcB) {
+		F.LogicProc(Pas.E.icode, Pas.E.dstM, Pas.D.icode, Pas.M.icode, d_srcA.Get(), d_srcB.Get());
+		if (F.stall) { F = Pas.F; return; }
 		F.predPC = PredictPC.Get();
+	}
+
+	void ConveyD(PIPE_ Pas) {
 		// To D
+		//void LogicProc(int D_icode, int E_icode, int M_icode, int d_srcA, int d_srcB, int E_dstM, int e_Cnd) {
+		D.LogicProc(Pas.D.icode, Pas.E.icode, Pas.M.icode, d_srcA.Get(), d_srcB.Get(), Pas.E.dstM, cond.Get());
+		if (D.stall) { D = Pas.D; return; }
+		if (D.bubble) { 
+			D.icode = INOP;
+			D.stat = SAOK;
+			D.ifun = D.rA = D.rB = D.valC = D.valP = 0;
+			return;
+		}
 		D.stat = f_stat.Get();
 		D.icode = f_icode.Get();
 		D.ifun = f_ifun.Get();
@@ -217,8 +293,18 @@ struct F_ { int predPC; };
 		D.rB = Align.rB;
 		D.valC = Align.valC;
 		D.valP = PCinc.valP;
-
+	}
+	
+	void ConveyE(PIPE_ Pas) {
 		// To E
+		//void LogicProc(int E_icode, int E_dstM, int e_Cnd, int d_srcA, int d_srcB) {
+		E.LogicProc(Pas.E.icode, Pas.E.dstM, cond.Get(), d_srcA.Get(), d_srcB.Get());
+		if (E.bubble) {
+			E.stat = SAOK;
+			E.icode = INOP;
+			E.ifun = E.valC = E.valA = E.valB = E.dstE = E.dstM = E.srcA = E.srcB = 0;
+			return;
+		}
 		E.stat = Pas.D.stat;
 		E.icode = Pas.D.icode;
 		E.ifun = Pas.D.ifun;
@@ -229,8 +315,18 @@ struct F_ { int predPC; };
 		E.dstM = d_dstM.Get();
 		E.srcA = d_srcA.Get();
 		E.srcB = d_srcB.Get();
+	}
 
+	void ConveyM(PIPE_ Pas) {
 		// To M
+		//void LogicProc(int W_stat, int m_stat) {
+		M.LogicProc(Pas.W.stat, m_stat.Get());
+		if (M.bubble) {
+			M.stat = SAOK;
+			M.icode = INOP;
+			M.Cnd = M.valE = M.valA = M.dstE = M.dstM = 0;
+			return;
+		}
 		M.stat = Pas.E.stat;
 		M.icode = Pas.E.icode;
 		M.Cnd = cond.Get();
@@ -238,15 +334,30 @@ struct F_ { int predPC; };
 		M.valA = Pas.E.valA;
 		M.dstE = e_dstE.Get();
 		M.dstM = Pas.E.dstM;
+	}
 
+	void ConveyW(PIPE_ Pas) {
 		// To W
+		//void LogicProc(int W_stat) {
+		W.LogicProc(Pas.W.stat);
+		if (W.stall) { 
+			W = Pas.W;
+			return;
+		}
 		W.stat = m_stat.Get();
 		W.icode = Pas.M.icode;
 		W.valE = Pas.M.valE;
 		W.valM = Datamemory.Get();
 		W.dstE = Pas.M.dstE;
 		W.dstM = Pas.M.dstM;
+	}
 
+	void Convey(PIPE_ Pas) {
+		ConveyF(Pas);
+		ConveyD(Pas);
+		ConveyE(Pas);
+		ConveyM(Pas);
+		ConveyW(Pas);
 		stat = W.stat;
 	}
 

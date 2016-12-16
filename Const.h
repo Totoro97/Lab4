@@ -12,7 +12,6 @@ const int ICALL = 8;
 const int IRET = 9;
 const int IPUSHL = 0xA;
 const int IPOPL = 0xB;
-const int IBUBBLE = 0xC;
 
 const int FNONE = 0;
 

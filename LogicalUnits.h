@@ -2,17 +2,13 @@
 
 struct SelectPC_ {
 	int ans;
-	int Isbubble;
 	int Get() { return ans; }
-	void Proc(int D_icode, int E_icode, int PasSelect, int M_icode, int M_Cnd, int M_valE, int W_icode, int W_valM, int F_predPC) {
-		Isbubble = (D_icode == IJXX || E_icode == IJXX);
-		if (Isbubble) 
-			ans = PasSelect;
-		else if (M_icode == IJXX && M_Cnd)
-			ans = M_valE;
+	void Proc(int M_icode, int M_Cnd, int M_valA, int W_icode, int W_valM, int F_predPC) {
+		if (M_icode == IJXX && !M_Cnd)
+			ans = M_valA;
 		else if (W_icode == IRET)
 			ans = W_valM;
-		else
+		else 
 			ans = F_predPC;
 		printf("Select:%d\n",ans);
 	}
@@ -63,7 +59,7 @@ struct Instrvalid_ {
 	void Proc(int f_icode) {
 		val = set<int> { 
 			INOP, IHALT, IRRMOVL, IIRMOVL, IRMMOVL, IMRMOVL,
-	  	    IOPL, IJXX, ICALL, IRET, IPUSHL, IPOPL, IBUBBLE
+	  	    IOPL, IJXX, ICALL, IRET, IPUSHL, IPOPL
 		}.count(f_icode);		
 	}
 };
@@ -81,7 +77,7 @@ struct PredictPC_ {
 	int Get() { return ans; }
 	void Proc(int f_icode, int f_valC, int f_valP) {
 		if (f_icode == IJXX || f_icode == ICALL) ans = f_valC;
-		else ans = f_valP;
+		else ans = f_valP;		
 	}
 };
 
@@ -250,7 +246,7 @@ struct ALUA_ {
 	int Get() { return val; }
 	void Proc(int E_icode, int E_valC, int E_valA) {
 		if (set<int>{ IRRMOVL, IOPL }.count(E_icode)) val = E_valA;
-		else if (set<int>{ IIRMOVL, IRMMOVL, IMRMOVL, IJXX }.count(E_icode)) val = E_valC;
+		else if (set<int>{ IIRMOVL, IRMMOVL, IMRMOVL }.count(E_icode)) val = E_valC;
 		else if (set<int>{ ICALL, IPUSHL }.count(E_icode)) val = -4;	
 		else if (set<int>{ IRET, IPOPL }.count(E_icode)) val = 4;		
 	}
@@ -271,7 +267,7 @@ struct ALUB_ {
 	void Proc(int E_icode, int E_valB) {
 		if (set<int>{ IRMMOVL, IMRMOVL, IOPL, ICALL, 
 		     IPUSHL, IRET, IPOPL }.count(E_icode)) val = E_valB;
-		else if (set<int> { IRRMOVL, IIRMOVL, IJXX }.count(E_icode)) val = 0;
+		else if (set<int> { IRRMOVL, IIRMOVL }.count(E_icode)) val = 0;
 	}
 };
 
@@ -387,3 +383,5 @@ struct m_stat_ {
 /*
 
 */
+
+//------------------------------------LogicControl!----------------------------------------------------

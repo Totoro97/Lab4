@@ -13,13 +13,8 @@ struct Instructions_ {
 	int A[6];
 	int icode, ifun, rA, rB, valC;
 	int imem_error;	
-	void Proc(int *COMMAND, int Isbubble) {
+	void Proc(int *COMMAND) {
 		printf("first:%d\n",COMMAND[0]);
-		if (Isbubble) {
-			icode = IBUBBLE;
-			ifun = rA = rB = valC = 0;
-			return;
-		}
 		for (int i = 0; i < 6; i++) A[i] = COMMAND[i];
 		if (A[0] == -1) { imem_error = 1; return; }
 		icode = A[0] >> 4;
@@ -43,7 +38,7 @@ struct Instructions_ {
 struct PCinc_ {
 	int valP;
 	int Get() { return valP; }
-	void Proc(int f_pc, int *COMMAND, int Isbubble) {
+	void Proc(int f_pc, int *COMMAND) {
 		int s = f_pc;
 		int icode = COMMAND[s] >> 4;
 		if (COMMAND[s] == -1) valP = 0;
@@ -83,6 +78,7 @@ struct RegisterFiles_ {
 		printf("\"edi\" : %d ",val[7]);
 		printf("}\n");
 	}
+	
 	void Proc(int srcA, int srcB) {
 		if (srcA != RNONE) d_rvalA = val[srcA];
 		else d_rvalA = 0;
@@ -91,6 +87,7 @@ struct RegisterFiles_ {
 	}
 	
 	void Write(int dstM, int M, int dstE, int E) {
+		// if (dstM != RNONE && dstE != RNONE) ???
 		if (dstM != RNONE) val[dstM] = M;
 		if (dstE != RNONE) val[dstE] = E;
 	}
@@ -101,36 +98,35 @@ struct RegisterFiles_ {
 struct ALU_ {
 	int valE;
 	int ZF, SF, OF;
-	void Proc(int valA, int valB, int alu_fun, int SetCC, int ZF_, int SF_, int OF_) {
+	void Proc(int valA, int valB, int alu_fun) {
 		ZF = SF = OF = 0;
 		if (alu_fun == 0) {
-			valE = valA + valB;
-			if (SetCC) OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0);
+			valE = valB + valA;
+			OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0);
 		} else if (alu_fun == 1) {
-			valB = -valB;
-			valE = valA + valB;
-			if (SetCC) OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0) || (valB == (1 << 31));
+			valA = -valA;
+			valE = valB + valA;
+			OF = (valA < 0 && valB < 0 && valE > 0) || (valA > 0 && valB > 0 && valE < 0) || (valA == (1 << 31));
 		} else if (alu_fun == 2) {
-			valE = valA & valB;
+			valE = valB & valA;
 		} else {
-			valE = valA ^ valB;
+			valE = valB ^ valA;
 		}
-		if (SetCC) SF = (valE < 0);
-		if (SetCC) ZF = (valE == 0);
-		if (!SetCC) ZF = ZF_, SF = SF_, OF = OF_;
+		SF = (valE < 0);
+		ZF = (valE == 0);
 	}
 };
 
 struct CC_ {
 	int le, l, e, ne, ge, g;
 	void Proc(int ZF, int SF, int OF, int SetCC) {
-		//if (!SetCC) { le = l = e = ne = ge = g = 0; return; }
+		if (!SetCC) { le = l = e = ne = ge = g = 0; return; }
 		le = (SF ^ OF) | ZF;
 		l = (SF ^ OF);
 		e = ZF;
 		ne = !ZF;
 		ge = !(SF ^ OF);
-		g = !(SF ^ OF) & (!ZF);
+		g = (!(SF ^ OF)) & (!ZF);
 	}
 };
 
@@ -161,7 +157,7 @@ struct Datamemory_ {
 		Addr /= 4;
 		if (Memread)
 			Val[Addr] = M_valA;
-		else 
+		if (Memwrite)
 			val = Val[Addr];
 	}
 };
