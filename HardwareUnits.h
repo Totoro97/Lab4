@@ -13,12 +13,14 @@ struct Instructions_ {
 	int A[6];
 	int icode, ifun, rA, rB, valC;
 	int imem_error;	
-	void Proc(int *COMMAND) {
-		printf("first:%d\n",COMMAND[0]);
+	int Max = 2500;
+	void Proc(int *COMMAND, int now) {
+		//printf("first:%d\n",COMMAND[0]);
 		for (int i = 0; i < 6; i++) A[i] = COMMAND[i];
-		if (A[0] == -1) { imem_error = 1; return; }
+		if (now > Max) { imem_error = 1; return; }
 		icode = A[0] >> 4;
 		ifun = A[0] & 0xF;
+		rA = rB = RNONE; valC = 0;
 		if (set<int> { IHALT, INOP, IRET }.count(icode)) return; 
 		else if (set<int> { IJXX, ICALL }.count(icode)) {
 			valC = A[1] + (A[2] << 8) + (A[3] << 16) + (A[4] << 24);
@@ -81,12 +83,12 @@ struct RegisterFiles_ {
 	
 	void Proc(int srcA, int srcB) {
 		if (srcA != RNONE) d_rvalA = val[srcA];
-		else d_rvalA = 0;
 		if (srcB != RNONE) d_rvalB = val[srcB];
-		else d_rvalB = 0;
 	}
 	
-	void Write(int dstM, int M, int dstE, int E) {
+	void Write(int dstM, int M, int dstE, int E, int W_icode) {
+		if (!set<int> { IMRMOVL, IIRMOVL, IRRMOVL, IPOPL, IRET, IOPL, IPUSHL, ICALL }.count(W_icode))
+			return;
 		// if (dstM != RNONE && dstE != RNONE) ???
 		if (dstM != RNONE) val[dstM] = M;
 		if (dstE != RNONE) val[dstE] = E;
@@ -120,7 +122,7 @@ struct ALU_ {
 struct CC_ {
 	int le, l, e, ne, ge, g;
 	void Proc(int ZF, int SF, int OF, int SetCC) {
-		if (!SetCC) { le = l = e = ne = ge = g = 0; return; }
+		if (!SetCC) { return; }
 		le = (SF ^ OF) | ZF;
 		l = (SF ^ OF);
 		e = ZF;
@@ -147,17 +149,21 @@ struct cond_ {
 //------------------------------------MEMORY--------------------------------------------------------
 
 struct Datamemory_ {
-	int Max = 10000;
+	int Max = 2500;
 	int dmem_error;
 	int Val[3010];
 	int val;
 	int Get() { return val; }
 	void Proc(int Memread, int Memwrite, int Addr, int M_valA) {
-		if (Addr < 0 || Addr > Max) { dmem_error = 1; return; }
-		Addr /= 4;
-		if (Memread)
-			Val[Addr] = M_valA;
-		if (Memwrite)
-			val = Val[Addr];
+		if (Addr < 0 || Addr > Max) { dmem_error = 1; return; }		
+		if (Memwrite) {
+			Val[Addr] = M_valA & 0xFF;
+			Val[Addr + 1] = (M_valA >> 8) & 0xFF;
+			Val[Addr + 2] = (M_valA >> 16) & 0xFF;
+			Val[Addr + 3] = (M_valA >> 24) & 0xFF;
+		}
+		if (Memread) {
+			val = Val[Addr] + (Val[Addr + 1] << 8) + (Val[Addr + 2] << 16) + (Val[Addr + 3] << 24);
+		}
 	}
 };

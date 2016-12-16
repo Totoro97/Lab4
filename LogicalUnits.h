@@ -10,7 +10,7 @@ struct SelectPC_ {
 			ans = W_valM;
 		else 
 			ans = F_predPC;
-		printf("Select:%d\n",ans);
+		//printf("Select:%d\n",ans);
 	}
 };
 
@@ -95,7 +95,7 @@ struct f_stat_ {
 	int val;
 	int Get() { return val; }
 	void Proc(int f_icode, int instr_valid, int imem_error) {
-		printf("f_icode:%d\n",f_icode);
+		//printf("f_icode:%d\n",f_icode);
 		if (imem_error) val = SADR;
 		else if (!instr_valid) val = SINS;
 		else if (f_icode == IHALT) val = SHLT;
@@ -194,7 +194,7 @@ struct FwdA_ {
 	int Get() { return val; }
 	void Proc(int D_icode, int D_valP, int d_srcA, int d_rvalA,
 		int e_dstE, int e_valE, int M_dstE, int M_valE, int M_dstM, int m_valM, int W_dstM, int W_valM, int W_dstE, int W_valE) {
-		printf("e_valE:%d\n",e_valE);
+		//printf("e_valE:%d\n",e_valE);
 		if (D_icode == ICALL || D_icode == IJXX) val = D_valP;
 		else if (d_srcA == e_dstE) val = e_valE;
 		else if (d_srcA == M_dstM) val = m_valM;

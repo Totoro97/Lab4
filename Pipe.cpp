@@ -142,8 +142,6 @@ struct F_ {
 	}	
 };
 
-int COMMAND[101000];
-
 struct PIPE_ {
 	int stat;
 	// PipelineRegisters
@@ -217,13 +215,16 @@ struct F_ { int predPC; };
 	void LHProc(PIPE_ Pas) {
 		// Writeback
 		RegisterFiles = Pas.RegisterFiles;
-		RegisterFiles.Write(Pas.W.dstM, Pas.W.valM, Pas.W.dstE, Pas.W.valE);
+		RegisterFiles.Write(Pas.W.dstM, Pas.W.valM, Pas.W.dstE, Pas.W.valE, Pas.W.icode);
 	
 		// Memory
 		Addr.Proc(Pas.M.icode, Pas.M.valE, Pas.M.valA);
 		Memread.Proc(Pas.M.icode);
 		Memwrite.Proc(Pas.M.icode);
+		Datamemory = Pas.Datamemory;
 		Datamemory.Proc(Memread.Get(), Memwrite.Get(), Addr.Get(), Pas.M.valA);
+		//printf("read:%d write:%d Addr:%d M_valA:%d\n",Memread.Get(), Memwrite.Get(), Addr.Get(),Pas.M.valA);
+		//printf("%d\n",Datamemory.Val[1000]);
 		m_stat.Proc(Pas.M.stat, Datamemory.dmem_error);
 		
 		// Execute
@@ -232,8 +233,9 @@ struct F_ { int predPC; };
 		ALUB.Proc(Pas.E.icode, Pas.E.valB);
 		SetCC.Proc(Pas.E.icode, Pas.W.stat, Pas.m_stat.Get());
 		ALU.Proc(ALUA.Get(), ALUB.Get(), ALUfun.Get()); 
+		CC = Pas.CC;
 		CC.Proc(ALU.ZF, ALU.SF, ALU.OF, SetCC.Get());
-		cond.Proc(Pas.E.ifun, CC.le, CC.l, CC.e, CC.ne, CC.ge, CC. g);
+		cond.Proc(Pas.E.ifun, CC.le, CC.l, CC.e, CC.ne, CC.ge, CC.g);
 		e_dstE.Proc(Pas.E.icode, cond.Get(), Pas.E.dstE);
 		
 		// Decode
@@ -241,19 +243,21 @@ struct F_ { int predPC; };
 		d_dstM.Proc(Pas.D.icode, Pas.D.rA);
 		d_srcA.Proc(Pas.D.icode, Pas.D.rA);
 		d_srcB.Proc(Pas.D.icode, Pas.D.rB);
-		printf("d_srcA:%d\n",d_srcA.Get());
-		printf("d_srcB:%d\n",d_srcB.Get());
+		//printf("d_srcA:%d\n",d_srcA.Get());
+		//printf("d_srcB:%d\n",d_srcB.Get());
 		RegisterFiles.Proc(d_srcA.Get(), d_srcB.Get());
 		FwdA.Proc(Pas.D.icode, Pas.D.valP, d_srcA.Get(), RegisterFiles.d_rvalA,
 				e_dstE.Get(), ALU.valE, Pas.M.dstE, Pas.M.valE, Pas.M.dstM,
 				Datamemory.Get(), Pas.W.dstM, Pas.W.valM, Pas.W.dstE, Pas.W.valE);
+		printf("d_rvalB: %d\n",RegisterFiles.d_rvalB);
 		FwdB.Proc(d_srcB.Get(), RegisterFiles.d_rvalB,
 				e_dstE.Get(), ALU.valE, Pas.M.dstE, Pas.M.valE, Pas.M.dstM,
 				Datamemory.Get(), Pas.W.dstM, Pas.W.valM, Pas.W.dstE, Pas.W.valE);
 	
 		// Fetch
 		SelectPC.Proc(Pas.M.icode, Pas.M.Cnd, Pas.M.valA, Pas.W.icode, Pas.W.valM, Pas.F.predPC);		
-		Instructions.Proc(COMMAND + SelectPC.Get());
+		//Instructions = Pas.Instructions;
+		Instructions.Proc(Pas.Datamemory.Val + SelectPC.Get(), SelectPC.Get());
 		Split.Proc(Instructions.icode, Instructions.ifun);
 		f_icode.Proc(Instructions.imem_error, Split.icode);
 		f_ifun.Proc(Instructions.imem_error, Split.ifun);
@@ -261,7 +265,9 @@ struct F_ { int predPC; };
 		f_stat.Proc(f_icode.Get(), Instrvalid.Get(), Instructions.imem_error);
 		NeedvalC.Proc(f_icode.Get());
 		Needregids.Proc(f_icode.Get());
-		PCinc.Proc(SelectPC.Get(), COMMAND);
+		PCinc = Pas.PCinc;
+		PCinc.Proc(SelectPC.Get(), Datamemory.Val);
+		Align = Pas.Align;
 		Align.Proc(Instructions.rA, Instructions.rB, Instructions.valC, Needregids.Get());	
 		PredictPC.Proc(f_icode.Get(), Align.valC, PCinc.valP);
 		
@@ -283,7 +289,8 @@ struct F_ { int predPC; };
 		if (D.bubble) { 
 			D.icode = INOP;
 			D.stat = SAOK;
-			D.ifun = D.rA = D.rB = D.valC = D.valP = 0;
+			D.ifun = D.valC = D.valP = 0;
+			D.rA = D.rB = RNONE;
 			return;
 		}
 		D.stat = f_stat.Get();
@@ -302,7 +309,8 @@ struct F_ { int predPC; };
 		if (E.bubble) {
 			E.stat = SAOK;
 			E.icode = INOP;
-			E.ifun = E.valC = E.valA = E.valB = E.dstE = E.dstM = E.srcA = E.srcB = 0;
+			E.dstE = E.dstM = E.srcA = E.srcB = RNONE;
+			E.ifun = E.valC = 0;
 			return;
 		}
 		E.stat = Pas.D.stat;
@@ -324,7 +332,8 @@ struct F_ { int predPC; };
 		if (M.bubble) {
 			M.stat = SAOK;
 			M.icode = INOP;
-			M.Cnd = M.valE = M.valA = M.dstE = M.dstM = 0;
+			M.dstE = M.dstM = RNONE;
+			M.Cnd = M.valE = M.valA = 0;
 			return;
 		}
 		M.stat = Pas.E.stat;
@@ -370,21 +379,23 @@ struct F_ { int predPC; };
 PIPE_ PIPE[1110];
 
 int main() {
-	freopen("input.yo","r",stdin);
+	freopen("input.in","r",stdin);
 	freopen("output.json","w",stdout);
 	int n = 0;
-	while (cin >> hex >> COMMAND[n])
+	while (cin >> hex >> PIPE[0].Datamemory.Val[n])
 		n++;
-	COMMAND[n] = -1;
 	int m = 0;
 	PIPE[0].Init();	
 	//printf("%d\n%d\n",n,COMMAND[44]);
 	//return 0;
 	do {
 		m++;
+		PIPE[m] = PIPE[m - 1];
 		PIPE[m].Proc(PIPE[m - 1]);	
 		PIPE[m].Print();
 		printf("\n");
 	} while (PIPE[m].stat == SAOK);
+	printf("%d\n",PIPE[m].Datamemory.Val[0xfc]);
+	printf("%d\n",m);
 	return 0;
 }
